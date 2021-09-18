@@ -28,4 +28,130 @@
 #	error "Windows 환경에서만 사용할 수 있습니다."
 #elif defined(_MSC_VER) && _MSC_VER < 1900 || !defined(_MSC_VER) && __cplusplus < 201103L
 #	error "C++11이 지원되는 환경에서만 사용할 수 있습니다."
+#else
+
+#include <stdexcept>
+#include <string>
+#include <utility>
+
+#include <Windows.h>
+#include <tchar.h>
+
+#define CT_WINAPI_SAFELY(expression) ((SetLastError(0), (expression), GetLastError()) == 0)
+
+namespace turtle {
+	class Window {
+	private:
+		HWND m_Handle = nullptr;
+
+	public:
+		Window() {
+			CreateHandle();
+		}
+		Window(Window&& other) {
+			MoveHandle(std::move(other));
+		}
+		~Window() {
+			DestroyWindow(m_Handle);
+		}
+
+	public:
+		Window& operator=(Window&& other) {
+			MoveHandle(std::move(other));
+			return *this;
+		}
+
+	private:
+		static HINSTANCE GetModule() noexcept {
+			static HINSTANCE module = GetModuleHandle(nullptr);
+			return module;
+		}
+		static LPCTSTR CreateWindowClass() {
+			WNDCLASS wndClass{};
+			wndClass.hbrBackground = static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH));
+			wndClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
+			wndClass.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+			wndClass.hInstance = GetModule();
+			wndClass.lpfnWndProc = WndProcStatic;
+			wndClass.lpszClassName = _T("ctWindow");
+			wndClass.style = CS_HREDRAW | CS_VREDRAW;
+
+			if (RegisterClass(&wndClass)) return wndClass.lpszClassName;
+			else throw std::runtime_error("윈도우 클래스를 생성하지 못했습니다.");
+		}
+		void CreateHandle() {
+			static LPCTSTR className = CreateWindowClass();
+
+			if (!CreateWindowEx(0, className, _T("cppturtle"), WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+				CW_USEDEFAULT, CW_USEDEFAULT, 640, 480, nullptr, nullptr, GetModule(), this))
+				throw std::runtime_error("윈도우를 생성하지 못했습니다.");
+		}
+		void MoveHandle(Window&& other) {
+			if (CT_WINAPI_SAFELY(SetWindowLongPtr(other.m_Handle, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this)))) {
+				DestroyWindow(m_Handle);
+
+				m_Handle = other.m_Handle;
+				other.m_Handle = nullptr;
+			} else throw std::runtime_error("윈도우를 이동하지 못했습니다.");
+		}
+
+		static LRESULT CALLBACK WndProcStatic(HWND handle, UINT message, WPARAM wParam, LPARAM lParam) {
+			Window* window = reinterpret_cast<Window*>(GetWindowLongPtr(handle, GWLP_USERDATA));
+			if (!window && message == WM_CREATE) {
+				CREATESTRUCT* const createStruct = reinterpret_cast<CREATESTRUCT*>(lParam);
+
+				window = reinterpret_cast<Window*>(createStruct->lpCreateParams);
+				window->m_Handle = handle;
+
+				if (!CT_WINAPI_SAFELY(SetWindowLongPtr(handle, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window)))) {
+					DestroyWindow(handle);
+					throw std::runtime_error("윈도우를 초기화하지 못했습니다.");
+				}
+			}
+
+			return window ? window->WndProc(message, wParam, lParam) : DefWindowProc(handle, message, wParam, lParam);
+		}
+		LRESULT WndProc(UINT message, WPARAM wParam, LPARAM lParam) {
+			static unsigned windowCount = 0;
+
+			switch (message) {
+			case WM_CREATE:
+				++windowCount;
+				return 0;
+
+			case WM_CLOSE:
+				DestroyWindow(m_Handle);
+				return 0;
+
+			case WM_DESTROY:
+				if (GetWindowLongPtr(m_Handle, GWLP_USERDATA) && --windowCount == 0) {
+					PostQuitMessage(0);
+				}
+
+				m_Handle = nullptr;
+				return 0;
+
+			default:
+				return DefWindowProc(m_Handle, message, wParam, lParam);
+			}
+		}
+
+	public:
+		int MainLoop() {
+			MSG message;
+			BOOL success;
+			while (true) {
+				success = GetMessage(&message, nullptr, 0, 0);
+				if (success == 0) break;
+				else if (success == -1) throw std::runtime_error("메세지를 가져오지 못했습니다.");
+
+				TranslateMessage(&message);
+				DispatchMessage(&message);
+			}
+
+			return message.wParam;
+		}
+	};
+}
+
 #endif
