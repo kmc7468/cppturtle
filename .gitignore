@@ -1,0 +1,11 @@
+bin/
+test*/
+test*.*
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.filters
+*.user
+cpp.hint
