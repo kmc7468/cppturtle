@@ -153,6 +153,34 @@ namespace turtle {
 
 namespace turtle {
 	namespace detail {
+		struct UserWindowClass {
+			UserWindowClass(void generator()) {
+				static bool dummy = (generator(), true);
+			}
+		};
+
+		template<typename T>
+		class WindowBuilder {
+		private:
+			Vector2 m_Location, m_Size;
+
+		public:
+			const Vector2& Location() const noexcept {
+				return m_Location;
+			}
+			T& Location(const Vector2& newLocation) noexcept {
+				m_Location = newLocation;
+				return static_cast<T&>(*this);
+			}
+			const Vector2& Size() const noexcept {
+				return m_Size;
+			}
+			T& Size(const Vector2& newSize) noexcept {
+				m_Size = newSize;
+				return static_cast<T&>(*this);
+			}
+		};
+
 		class Window {
 		private:
 			HWND m_Handle = nullptr;
@@ -161,14 +189,15 @@ namespace turtle {
 			std::vector<HWND> m_Children;
 
 		public:
-			Window(HWND parent, LPCTSTR className, LPCTSTR windowName, DWORD style, DWORD exStyle, Vector2 location, Vector2 size) {
+			template<typename T>
+			Window(HWND parent, LPCTSTR className, LPCTSTR windowName, DWORD style, DWORD exStyle, const WindowBuilder<T>& builder) {
 				Window* const parentWrapper = GetWrapper(parent);
 				if (parentWrapper) {
 					m_Menu = reinterpret_cast<HMENU>(parentWrapper->m_Children.size());
 				}
 
 				m_Handle = CreateWindowEx(exStyle, className, windowName, style,
-					location.X, location.Y, size.X, size.Y, parent, m_Menu, GetModule(), nullptr);
+					builder.Location().X, builder.Location().Y, builder.Size().X, builder.Size().Y, parent, m_Menu, GetModule(), nullptr);
 				if (!m_Handle) throw std::runtime_error("윈도우를 생성하지 못했습니다.");
 
 				if (!CT_WINAPI_SAFELY(SetWindowLongPtr(m_Handle, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this)))) {
@@ -261,22 +290,25 @@ namespace turtle {
 				} else throw std::runtime_error("윈도우를 이동하지 못했습니다.");
 			}
 		};
-
-		struct UserWindowClass {
-			UserWindowClass(void generator()) {
-				static bool dummy = (generator(), true);
-			}
-		};
 	}
+
+	class MainWindowBuilder final : public detail::WindowBuilder<MainWindowBuilder> {
+	public:
+		MainWindowBuilder() noexcept {
+			Location({ CW_USEDEFAULT, CW_USEDEFAULT });
+			Size({ 640, 480 });
+		}
+	};
 
 	class MainWindow : public detail::UserWindowClass, public detail::Window {
 	public:
-		MainWindow()
-			: detail::UserWindowClass(CreateWindowClass),
-			detail::Window(nullptr, _T("ctWindow"), _T("cppturtle"), WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0,
-				{ CW_USEDEFAULT, CW_USEDEFAULT }, { 640, 480 }) {
+		MainWindow(const MainWindowBuilder& builder = MainWindowBuilder())
+			: UserWindowClass(CreateWindowClass),
+			Window(nullptr, _T("ctWindow"), _T("cppturtle"), WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, builder) {
 			++GetWindowCount();
 		}
+		MainWindow(int width, int height)
+			: MainWindow(MainWindowBuilder().Size({ width, height })) {}
 		MainWindow(MainWindow&& other) = default;
 		virtual ~MainWindow() override = default;
 
@@ -297,7 +329,7 @@ namespace turtle {
 				return 0;
 
 			default:
-				return detail::Window::WndProc(handle, message, wParam, lParam);
+				return Window::WndProc(handle, message, wParam, lParam);
 			}
 		}
 
