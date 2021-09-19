@@ -153,6 +153,7 @@ namespace turtle {
 
 namespace turtle {
 	namespace detail {
+		template<typename T>
 		struct UserWindowClass {
 			UserWindowClass(void generator()) {
 				static bool dummy = (generator(), true);
@@ -162,7 +163,7 @@ namespace turtle {
 		template<typename T>
 		class WindowBuilder {
 		private:
-			Vector2 m_Location, m_Size;
+			Vector2 m_Location{ 0, 0 }, m_Size{ 100, 50 };
 
 		public:
 			const Vector2& Location() const noexcept {
@@ -196,7 +197,7 @@ namespace turtle {
 					m_Menu = reinterpret_cast<HMENU>(parentWrapper->m_Children.size());
 				}
 
-				m_Handle = CreateWindowEx(exStyle, className, windowName, style,
+				m_Handle = CreateWindowEx(exStyle, className, windowName, style | WS_VISIBLE,
 					builder.Location().X, builder.Location().Y, builder.Size().X, builder.Size().Y, parent, m_Menu, GetModule(), nullptr);
 				if (!m_Handle) throw std::runtime_error("윈도우를 생성하지 못했습니다.");
 
@@ -234,6 +235,9 @@ namespace turtle {
 			}
 
 		public:
+			HWND GetHandle() const noexcept {
+				return m_Handle;
+			}
 			void Destroy() noexcept {
 				SendMessage(m_Handle, CT_WM_DESTROY, 0, 0);
 
@@ -264,13 +268,9 @@ namespace turtle {
 				return module;
 			}
 
-			HWND GetHandle() const noexcept {
-				return m_Handle;
-			}
 			static Window* GetWrapper(HWND handle) noexcept {
 				return reinterpret_cast<Window*>(GetWindowLongPtr(handle, GWLP_USERDATA));
 			}
-
 			static LRESULT CALLBACK WndProcStatic(HWND handle, UINT message, WPARAM wParam, LPARAM lParam) {
 				return reinterpret_cast<Window*>(GetWindowLongPtr(handle, GWLP_USERDATA))->WndProc(handle, message, wParam, lParam);
 			}
@@ -300,11 +300,11 @@ namespace turtle {
 		}
 	};
 
-	class MainWindow : public detail::UserWindowClass, public detail::Window {
+	class MainWindow : public detail::UserWindowClass<MainWindow>, public detail::Window {
 	public:
 		MainWindow(const MainWindowBuilder& builder = MainWindowBuilder())
 			: UserWindowClass(CreateWindowClass),
-			Window(nullptr, _T("ctWindow"), _T("cppturtle"), WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, builder) {
+			Window(nullptr, _T("ctWindow"), _T("cppturtle"), WS_OVERLAPPEDWINDOW, 0, builder) {
 			++GetWindowCount();
 		}
 		MainWindow(int width, int height)
@@ -365,6 +365,68 @@ namespace turtle {
 			}
 
 			return static_cast<int>(message.wParam);
+		}
+	};
+
+	namespace detail {
+		template<typename T>
+		class ControlBuilder : public WindowBuilder<T> {
+		private:
+			Window* m_Parent = nullptr;
+
+		public:
+			ControlBuilder(Window& parent) noexcept
+				: m_Parent(&parent) {}
+
+		public:
+			const Window& Parent() const noexcept {
+				return *m_Parent;
+			}
+		};
+
+		class Control : public Window {
+		public:
+			template<typename T>
+			Control(LPCTSTR className, LPCTSTR windowName, DWORD style, DWORD exStyle, const ControlBuilder<T>& builder)
+				: Window(builder.Parent().GetHandle(), className, windowName, style | WS_CHILD, exStyle, builder) {}
+			Control(Control&& other) noexcept = default;
+			virtual ~Control() override = default;
+
+		public:
+			Control& operator=(Control&& other) noexcept = default;
+		};
+	}
+
+	class CanvasBuilder final : public detail::ControlBuilder<CanvasBuilder> {
+	public:
+		CanvasBuilder(detail::Window& parent) noexcept
+			: ControlBuilder(parent) {}
+	};
+
+	class Canvas : public detail::UserWindowClass<Canvas>, public detail::Control {
+	public:
+		Canvas(const CanvasBuilder& builder)
+			: UserWindowClass(CreateWindowClass),
+			Control(_T("ctCanvas"), nullptr, 0, 0, builder) {}
+		Canvas(Window& parent)
+			: Canvas(CanvasBuilder(parent)) {}
+		Canvas(Canvas&& other) noexcept = default;
+		virtual ~Canvas() override = default;
+
+	public:
+		Canvas& operator=(Canvas&& other) noexcept = default;
+
+	private:
+		static void CreateWindowClass() {
+			WNDCLASS wndClass{};
+			wndClass.hbrBackground = static_cast<HBRUSH>(GetStockObject(GRAY_BRUSH));
+			wndClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
+			wndClass.hInstance = GetModule();
+			wndClass.lpfnWndProc = DefWindowProc;
+			wndClass.lpszClassName = _T("ctCanvas");
+			wndClass.style = CS_HREDRAW | CS_VREDRAW;
+
+			if (!RegisterClass(&wndClass)) throw std::runtime_error("윈도우 클래스를 생성하지 못했습니다.");
 		}
 	};
 }
