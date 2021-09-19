@@ -30,6 +30,7 @@
 #	error "C++11이 지원되는 환경에서만 사용할 수 있습니다."
 #else
 
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -38,6 +39,113 @@
 #include <tchar.h>
 
 #define CT_WINAPI_SAFELY(expression) ((SetLastError(0), (expression), GetLastError()) == 0)
+
+namespace turtle {
+	class Vector2 {
+	public:
+		int X = 0, Y = 0;
+
+	public:
+		Vector2() noexcept = default;
+		Vector2(int x, int y) noexcept
+			: X(x), Y(y) {}
+		Vector2(const Vector2& other) noexcept = default;
+		~Vector2() = default;
+
+	public:
+		Vector2& operator=(const Vector2& other) noexcept = default;
+		bool operator==(const Vector2& rhs) const noexcept {
+			return X == rhs.X && Y == rhs.Y;
+		}
+		bool operator!=(const Vector2& rhs) const noexcept {
+			return X != rhs.X || Y != rhs.Y;
+		}
+
+	public:
+		float GetSize() const {
+			return std::sqrtf(X * X + Y * Y);
+		}
+		int Dot(const Vector2& rhs) const noexcept {
+			return X * rhs.X + Y * rhs.Y;
+		}
+	};
+
+	Vector2 operator+(const Vector2& lhs, const Vector2& rhs) noexcept {
+		return { lhs.X + rhs.X, lhs.Y + rhs.Y };
+	}
+	Vector2 operator-(const Vector2& lhs, const Vector2& rhs) noexcept {
+		return { lhs.X - rhs.X, lhs.Y - rhs.Y };
+	}
+	Vector2 operator*(const Vector2& lhs, int rhs) noexcept {
+		return { lhs.X * rhs, lhs.Y * rhs };
+	}
+	Vector2 operator*(int lhs, const Vector2& rhs) noexcept {
+		return { lhs * rhs.X, lhs * rhs.Y };
+	}
+
+	class Vector2f {
+	public:
+		float X = 0, Y = 0;
+
+	public:
+		Vector2f() noexcept = default;
+		Vector2f(float x, float y) noexcept
+			: X(x), Y(y) {}
+		Vector2f(const Vector2& other) noexcept
+			: X(other.X), Y(other.Y) {}
+		Vector2f(const Vector2f& other) noexcept = default;
+		~Vector2f() = default;
+
+	public:
+		Vector2f& operator=(const Vector2f& other) noexcept = default;
+		bool operator==(const Vector2f& rhs) const noexcept {
+			return X == rhs.X && Y == rhs.Y;
+		}
+		bool operator!=(const Vector2f& rhs) const noexcept {
+			return X != rhs.X || Y != rhs.Y;
+		}
+
+	public:
+		float GetSize() const {
+			return std::sqrtf(X * X + Y * Y);
+		}
+		float Dot(const Vector2f& rhs) const noexcept {
+			return X * rhs.X + Y * rhs.Y;
+		}
+	};
+
+	Vector2f operator+(const Vector2f& lhs, const Vector2f& rhs) noexcept {
+		return { lhs.X + rhs.X, lhs.Y + rhs.Y };
+	}
+	Vector2f operator-(const Vector2f& lhs, const Vector2f& rhs) noexcept {
+		return { lhs.X - rhs.X, lhs.Y - rhs.Y };
+	}
+	Vector2f operator*(const Vector2f& lhs, float rhs) noexcept {
+		return { lhs.X * rhs, lhs.Y * rhs };
+	}
+	Vector2f operator*(float lhs, const Vector2f& rhs) noexcept {
+		return { lhs * rhs.X, lhs * rhs.Y };
+	}
+
+	Vector2f operator+(const Vector2& lhs, const Vector2f& rhs) noexcept {
+		return { lhs.X + rhs.X, lhs.Y + rhs.Y };
+	}
+	Vector2f operator+(const Vector2f& lhs, const Vector2& rhs) noexcept {
+		return { lhs.X + rhs.X, lhs.Y + rhs.Y };
+	}
+	Vector2f operator-(const Vector2& lhs, const Vector2f& rhs) noexcept {
+		return { lhs.X - rhs.X, lhs.Y - rhs.Y };
+	}
+	Vector2f operator-(const Vector2f& lhs, const Vector2& rhs) noexcept {
+		return { lhs.X - rhs.X, lhs.Y - rhs.Y };
+	}
+	Vector2f operator*(const Vector2& lhs, float rhs) noexcept {
+		return { lhs.X * rhs, lhs.Y * rhs };
+	}
+	Vector2f operator*(float lhs, const Vector2& rhs) noexcept {
+		return { lhs * rhs.X, lhs * rhs.Y };
+	}
+}
 
 namespace turtle {
 	class Window {
